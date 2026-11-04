@@ -51,10 +51,10 @@ The example values are placeholders; the server intentionally refuses to start u
 
 - Telegram authorization is performed on the backend. The frontend never receives the MTProto session string.
 - The saved Telegram session is encrypted with AES-256-GCM before being written to local disk or R2.
-- Browser access is restricted by exact CORS origins. Production cookies are HttpOnly, Secure, and SameSite=None for a cross-origin frontend.
+- Browser access is restricted by exact CORS origins. Production cookies are HttpOnly, Secure, and SameSite=None. A short-lived bearer token is also returned on unlock and kept only in frontend memory (never localStorage) as a fallback for mobile browsers that block third-party cookies.
 - The backend applies security headers, JSON size limits, and request rate limits.
 - Browser unlock sessions and pending login challenges are held in memory and expire on process restart. The encrypted Telegram authorization session persists in R2.
-- Some mobile browsers restrict third-party cookies. A same-site custom domain for the frontend and API is preferred; test iOS Safari cookie behavior before relying on the deployment.
+- Some mobile browsers restrict third-party cookies. The in-memory bearer-token fallback supports cross-origin requests, but it is lost on reload and the user must unlock again. A same-site custom domain is still preferred.
 - This is a personal single-account beta scaffold, not a multi-user service. Do not expose it publicly until deployment and access controls have been verified.
 
 ## Candidate free hosting
