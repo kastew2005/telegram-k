@@ -3,7 +3,6 @@ import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
-import { SessionPasswordNeededError } from "telegram/errors/index.js";
 import {
   createCipheriv, createDecipheriv, randomBytes, randomUUID,
   timingSafeEqual
@@ -210,7 +209,7 @@ app.post("/api/telegram/verify", apiLimiter, requireBrowserSession, async (req, 
     await persistTelegramSession(telegramClient);
     res.json({ ok: true, needsPassword: false });
   } catch (error) {
-    if (error instanceof SessionPasswordNeededError || error.errorMessage === "SESSION_PASSWORD_NEEDED") {
+    if (error.errorMessage === "SESSION_PASSWORD_NEEDED" || error.message?.includes("SESSION_PASSWORD_NEEDED")) {
       res.json({ ok: true, needsPassword: true, challengeId });
     } else {
       console.error("Telegram code verification failed:", error.message);
