@@ -106,7 +106,7 @@ function requireBrowserSession(req, res, next) {
   const cookieToken = parseCookies(req.headers.cookie)[COOKIE_NAME];
   const authHeader = req.get("authorization") || "";
   const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  const token = cookieToken || bearerToken;
+  const token = bearerToken || cookieToken;
   const expires = token && browserSessions.get(token);
   if (!expires || expires < Date.now()) {
     if (token) browserSessions.delete(token);
@@ -230,6 +230,12 @@ app.post("/api/telegram/start", apiLimiter, authLimiter, requireBrowserSession, 
   const phoneNumber = cleanText(req.body?.phoneNumber, 32);
   if (!/^\+[1-9]\d{6,14}$/.test(phoneNumber)) {
     return res.status(400).json({ error: "Enter the phone number in international format, for example +31612345678." });
+  }
+  for (const [id, pending] of loginChallenges) {
+    if (pending.expiresAt < Date.now()) {
+      loginChallenges.delete(id);
+      await pending.client.disconnect().catch(() => {});
+    }
   }
   let client;
   try {
@@ -356,6 +362,10 @@ app.post("/api/telegram/logout", apiLimiter, requireBrowserSession, async (_req,
   if (telegramClient) {
     await telegramClient.disconnect().catch(() => {});
     telegramClient = null;
+  }
+  for (const [id, pending] of loginChallenges) {
+    loginChallenges.delete(id);
+    await pending.client.disconnect().catch(() => {});
   }
   try { await deletePersistedSession(); }
   catch (error) { console.error("Could not remove encrypted session:", error.message); }
