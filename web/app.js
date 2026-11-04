@@ -3,6 +3,7 @@
   const API = String(window.TK_API_URL || "").replace(/\/$/, "");
   const $ = (id) => document.getElementById(id);
   const views = ["setupNotice", "unlockView", "telegramLoginView", "messengerView"];
+  let accessToken = "";
   let challengeId = "";
   let activeChatId = "";
 
@@ -14,10 +15,10 @@
     $("connectionStatus").innerHTML = `<i class="${online ? "online" : ""}"></i>${escapeHtml(text)}`;
   };
   async function request(path, options = {}) {
+    const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
     const response = await fetch(`${API}${path}`, {
-      credentials: "include",
-      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-      ...options
+      credentials: "include", headers, ...options
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `Ошибка сервера (${response.status})`);
@@ -53,7 +54,8 @@
     event.preventDefault();
     showError("unlockError", "");
     try {
-      await request("/api/unlock", { method: "POST", body: JSON.stringify({ password: $("appPassword").value }) });
+      const auth = await request("/api/unlock", { method: "POST", body: JSON.stringify({ password: $("appPassword").value }) });
+      accessToken = auth.accessToken || "";
       $("appPassword").value = "";
       $("lockButton").classList.remove("hidden");
       await bootUnlocked();
@@ -182,6 +184,7 @@
   $("backToChats").addEventListener("click", () => $("messengerView").classList.remove("chat-open"));
   $("lockButton").addEventListener("click", async () => {
     try { await request("/api/lock", { method: "POST", body: "{}" }); } catch {}
+    accessToken = "";
     activeChatId = "";
     $("lockButton").classList.add("hidden");
     setStatus("заблокировано");
