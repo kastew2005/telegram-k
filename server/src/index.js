@@ -10,7 +10,7 @@ import {
 import { mkdir, readFile, writeFile, rename, chmod } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { AwsClient } from "aws4fetch";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, "../data"));
@@ -36,12 +36,13 @@ const r2Configured = r2Names.filter((name) => Boolean(process.env[name])).length
 if (r2Configured !== 0 && r2Configured !== r2Names.length) {
   throw new Error("Configure all four R2 variables or leave all four empty.");
 }
-const r2 = r2Configured === r2Names.length ? new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY }
+const r2 = r2Configured === r2Names.length ? new AwsClient({
+  accessKeyId: process.env.R2_ACCESS_KEY_ID,
+  secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  service: "s3",
+  region: "auto"
 }) : null;
-const SESSION_OBJECT_KEY = "telegram-k/private/session.enc";
+const R2_OBJECT_URL = `https://${process.env.R2_ACCOUNT_ID || "missing"}.r2.cloudflarestorage.com/${process.env.R2_BUCKET || "missing"}/telegram-k/private/session.enc`;
 const appPassword = Buffer.from(process.env.APP_PASSWORD, "utf8");
 const allowedOrigins = new Set(
   (process.env.FRONTEND_ORIGINS || "http://localhost:5173,http://localhost:8787")
@@ -124,10 +125,12 @@ function decryptSession(payload) {
 async function persistTelegramSession(client) {
   const encrypted = encryptSession(client.session.save());
   if (r2) {
-    await r2.send(new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET, Key: SESSION_OBJECT_KEY,
-      Body: encrypted, ContentType: "application/octet-stream"
-    }));
+    const response = await r2.fetch(R2_OBJECT_URL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: encrypted
+    });
+    if (!response.ok) throw new Error(`R2 session write failed (${response.status}).`);
     return;
   }
   await mkdir(DATA_DIR, { recursive: true });
@@ -139,10 +142,11 @@ async function persistTelegramSession(client) {
 async function readPersistedSession() {
   if (r2) {
     try {
-      const result = await r2.send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET, Key: SESSION_OBJECT_KEY }));
-      return await result.Body.transformToString();
+      const response = await r2.fetch(R2_OBJECT_URL);
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`R2 session read failed (${response.status}).`);
+      return await response.text();
     } catch (error) {
-      if (error.name === "NoSuchKey" || error.$metadata?.httpStatusCode === 404) return null;
       throw error;
     }
   }
@@ -151,7 +155,8 @@ async function readPersistedSession() {
 }
 async function deletePersistedSession() {
   if (r2) {
-    await r2.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET, Key: SESSION_OBJECT_KEY }));
+    const response = await r2.fetch(R2_OBJECT_URL, { method: "DELETE" });
+    if (!response.ok) throw new Error(`R2 session delete failed (${response.status}).`);
     return;
   }
   try { await (await import("node:fs/promises")).unlink(SESSION_FILE); }
