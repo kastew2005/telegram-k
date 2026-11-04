@@ -16,6 +16,7 @@
     "helmet": "^8.1.0",
     "telegram": "^2.26.22",
     "express-rate-limit": "^8.1.0",
-    "aws4fetch": "1.0.20"
+    "aws4fetch": "1.0.20",
+    "dotenv": "16.6.1"
   }
 }
