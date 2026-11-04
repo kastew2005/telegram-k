@@ -64,3 +64,31 @@ Koyeb currently documents one free web service per organization (512 MB RAM, 0.1
 Cloudflare R2 currently includes a monthly free allowance for Standard storage (10 GB-month), Class A operations (1 million), and Class B operations (10 million). Check the current limits before deployment.
 
 Review Telegram's official requirements: https://core.telegram.org/api and https://core.telegram.org/mtproto/security_guidelines
+
+## Deployment plan: Koyeb + Cloudflare R2
+
+The repository includes server/Dockerfile and server/.dockerignore. The free Koyeb web instance is intended for testing only: it has 512 MB RAM, 0.1 vCPU, 2 GB SSD, and sleeps after one hour without traffic. It cannot attach a persistent volume, so configure R2 before connecting Telegram.
+
+1. Create a Cloudflare account and open Storage & databases → R2.
+2. Create one Standard bucket, for example telegram-k-private.
+3. Create an R2 S3 API token with read/write access limited to that bucket. Copy the Account ID, Access Key ID, and Secret Access Key into a password manager; do not send them in ChatGPT.
+4. In Koyeb, create a Web Service from the GitHub repository kastew2005/telegram-k.
+5. Set the service work directory / build context to server and choose the included Dockerfile.
+6. Expose HTTP on port 8787 and configure health check path /health.
+7. Add the following environment variables as encrypted secrets in Koyeb:
+   - NODE_ENV=production
+   - TG_API_ID
+   - TG_API_HASH
+   - APP_PASSWORD
+   - SESSION_ENCRYPTION_KEY
+   - FRONTEND_ORIGINS=https://kastew2005.github.io
+   - R2_ACCOUNT_ID
+   - R2_ACCESS_KEY_ID
+   - R2_SECRET_ACCESS_KEY
+   - R2_BUCKET=telegram-k-private
+8. Deploy and verify the service health endpoint returns the JSON object with ok=true and service=telegram-k-api.
+9. Only after the backend URL is live, set window.TK_API_URL in web/config.js to its HTTPS origin.
+
+The R2 Standard free allowance currently includes 10 GB-month storage, 1 million Class A operations, and 10 million Class B operations per month. R2 requires adding the R2 subscription to the Cloudflare account; usage within the included allowance is free. Check the dashboard billing page before use.
+
+Koyeb's free instance scales to zero after one hour without traffic and may take time to wake. This is suitable for initial testing, not guaranteed always-on service.
