@@ -1,0 +1,14 @@
+{
+  "name": "TELEGRAM K",
+  "short_name": "Telegram K",
+  "description": "Private Telegram messaging workspace",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#101116",
+  "theme_color": "#101116",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
