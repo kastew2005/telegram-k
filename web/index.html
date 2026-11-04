@@ -3,16 +3,80 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#111318">
-  <meta name="description" content="TELEGRAM K — private messaging workspace">
+  <meta name="theme-color" content="#101116">
+  <meta name="description" content="TELEGRAM K — private Telegram client">
   <title>TELEGRAM K</title>
   <link rel="stylesheet" href="./styles.css">
+  <script src="./config.js"></script>
+  <script src="./app.js" defer></script>
 </head>
 <body>
-  <main class="shell">
-    <header class="topbar"><div class="brand"><span class="brand-mark">K</span><div><strong>TELEGRAM K</strong><small>YOUR PRIVATE MESSENGER</small></div></div><span class="status"><i></i> интерфейс готов</span></header>
-    <section class="welcome"><p class="eyebrow">PRIVATE MESSAGING SPACE</p><h1>Твои разговоры.<br><span>Твой интерфейс.</span></h1><p class="intro">Премиальный клиент для работы с Telegram. Подключение аккаунта появится после настройки защищённого сервера.</p><div class="notice"><b>Подключение Telegram ещё не активно</b><p>Сейчас это стартовая версия интерфейса. Не вводи здесь коды входа или пароль Telegram.</p></div><a class="button" href="https://core.telegram.org/api" target="_blank" rel="noreferrer">Документация Telegram <span>↗</span></a></section>
-    <footer>TELEGRAM K <span>·</span> PRIVATE BETA</footer>
+  <main class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="TELEGRAM K">
+        <span class="brand-mark">K</span>
+        <span><strong>TELEGRAM K</strong><small>PRIVATE MESSENGER</small></span>
+      </a>
+      <div class="top-actions"><span id="connectionStatus" class="status"><i></i> не подключено</span><button id="lockButton" class="icon-button hidden" type="button" aria-label="Заблокировать">⌑</button></div>
+    </header>
+
+    <section id="setupNotice" class="setup-notice">
+      <span class="notice-icon">✦</span>
+      <div><strong>Сервер ещё не подключён</strong><p>Интерфейс готовится. После размещения защищённого backend здесь появится вход в Telegram.</p></div>
+    </section>
+
+    <section id="unlockView" class="auth-view hidden">
+      <p class="eyebrow">PRIVATE ACCESS</p>
+      <h1>С возвращением<span>.</span></h1>
+      <p class="muted">Введи пароль доступа к TELEGRAM K.</p>
+      <form id="unlockForm" class="auth-card">
+        <label for="appPassword">Пароль приложения</label>
+        <input id="appPassword" type="password" autocomplete="current-password" placeholder="Твой пароль" required>
+        <button class="primary-button" type="submit">Открыть приложение <span>→</span></button>
+        <p id="unlockError" class="error-text" role="status"></p>
+      </form>
+    </section>
+
+    <section id="telegramLoginView" class="auth-view hidden">
+      <p class="eyebrow">TELEGRAM CONNECTION</p>
+      <h1>Подключим<br><span>твой аккаунт.</span></h1>
+      <p class="muted">Авторизация проходит напрямую через Telegram. Коды и пароль 2FA обрабатываются сервером и не сохраняются в интерфейсе.</p>
+      <form id="phoneForm" class="auth-card">
+        <label for="phoneNumber">Номер телефона</label>
+        <input id="phoneNumber" type="tel" inputmode="tel" autocomplete="tel" placeholder="+31..." required>
+        <button class="primary-button" type="submit">Получить код <span>→</span></button>
+        <p id="phoneError" class="error-text" role="status"></p>
+      </form>
+      <form id="codeForm" class="auth-card hidden">
+        <label for="loginCode">Код из Telegram</label>
+        <input id="loginCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="Код подтверждения" required>
+        <button class="primary-button" type="submit">Подтвердить код <span>→</span></button>
+        <p id="codeError" class="error-text" role="status"></p>
+      </form>
+      <form id="twoFactorForm" class="auth-card hidden">
+        <label for="twoFactorPassword">Пароль двухэтапной проверки</label>
+        <input id="twoFactorPassword" type="password" autocomplete="current-password" placeholder="Пароль Telegram" required>
+        <button class="primary-button" type="submit">Завершить вход <span>→</span></button>
+        <p id="twoFactorError" class="error-text" role="status"></p>
+      </form>
+    </section>
+
+    <section id="messengerView" class="messenger hidden">
+      <aside class="chat-sidebar">
+        <div class="sidebar-heading"><div><p class="eyebrow">YOUR SPACE</p><h2>Сообщения</h2></div><button id="refreshChats" class="icon-button" type="button" aria-label="Обновить чаты">↻</button></div>
+        <div id="chatList" class="chat-list"><p class="muted empty-state">Загрузка чатов…</p></div>
+      </aside>
+      <section class="conversation">
+        <div id="emptyConversation" class="empty-conversation"><span class="empty-symbol">K</span><h2>Твои разговоры.</h2><p>Выбери чат, чтобы начать.</p></div>
+        <div id="activeConversation" class="active-conversation hidden">
+          <header class="conversation-header"><button id="backToChats" class="icon-button back-button" type="button" aria-label="Назад к чатам">←</button><div><strong id="activeChatTitle">Чат</strong><small>TELEGRAM</small></div></header>
+          <div id="messageList" class="message-list"></div>
+          <form id="sendForm" class="send-form"><input id="messageInput" type="text" maxlength="4096" placeholder="Написать сообщение…" autocomplete="off" required><button class="send-button" type="submit" aria-label="Отправить">↑</button></form>
+          <p id="sendError" class="error-text"></p>
+        </div>
+      </section>
+    </section>
+    <footer>TELEGRAM K <span>·</span> PRIVATE BETA <span class="footer-note">Неофициальный сторонний клиент Telegram</span></footer>
   </main>
 </body>
 </html>
