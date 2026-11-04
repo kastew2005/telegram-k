@@ -62,7 +62,7 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   }
   if (req.method === "OPTIONS") return res.sendStatus(204);
@@ -100,9 +100,13 @@ function issueBrowserSession(res) {
   const token = randomBytes(32).toString("base64url");
   browserSessions.set(token, Date.now() + COOKIE_TTL_MS);
   setSessionCookie(res, token);
+  return token;
 }
 function requireBrowserSession(req, res, next) {
-  const token = parseCookies(req.headers.cookie)[COOKIE_NAME];
+  const cookieToken = parseCookies(req.headers.cookie)[COOKIE_NAME];
+  const authHeader = req.get("authorization") || "";
+  const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  const token = cookieToken || bearerToken;
   const expires = token && browserSessions.get(token);
   if (!expires || expires < Date.now()) {
     if (token) browserSessions.delete(token);
@@ -204,13 +208,16 @@ app.post("/api/unlock", authLimiter, (req, res) => {
   if (typeof supplied !== "string" || !safeEqual(supplied, appPassword.toString("utf8"))) {
     return res.status(401).json({ error: "Incorrect app password." });
   }
-  issueBrowserSession(res);
-  res.json({ ok: true });
+  const accessToken = issueBrowserSession(res);
+  res.json({ ok: true, accessToken });
 });
 
 app.post("/api/lock", (req, res) => {
   const token = parseCookies(req.headers.cookie)[COOKIE_NAME];
+  const authHeader = req.get("authorization") || "";
+  const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
   if (token) browserSessions.delete(token);
+  if (bearerToken) browserSessions.delete(bearerToken);
   clearSessionCookie(res);
   res.json({ ok: true });
 });
