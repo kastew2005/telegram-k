@@ -1,14 +1,16 @@
-name: Check TELEGRAM K backend
+name: Check TELEGRAM K frontend and backend
 
 on:
   push:
     branches: [main]
     paths:
       - "server/**"
+      - "web/**"
       - ".github/workflows/backend-check.yml"
   pull_request:
     paths:
       - "server/**"
+      - "web/**"
       - ".github/workflows/backend-check.yml"
 
 jobs:
@@ -24,7 +26,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install dependencies
-        run: npm install --ignore-scripts
-      - name: Check JavaScript syntax
+      - name: Install backend dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Check backend JavaScript syntax
         run: node --check src/index.js
+      - name: Check frontend JavaScript syntax
+        run: node --check ../web/app.js
