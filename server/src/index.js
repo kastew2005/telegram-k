@@ -76,12 +76,12 @@ function parseCookies(header = "") {
   }).filter(([key]) => key));
 }
 function setSessionCookie(res, token) {
-  const parts = [`${COOKIE_NAME}=${encodeURIComponent(token)}`, "HttpOnly", "Path=/", "SameSite=None", `Max-Age=${Math.floor(COOKIE_TTL_MS / 1000)}`];
+  const parts = [`${COOKIE_NAME}=${encodeURIComponent(token)}`, "HttpOnly", "Path=/", IS_PROD ? "SameSite=None" : "SameSite=Lax", `Max-Age=${Math.floor(COOKIE_TTL_MS / 1000)}`];
   if (IS_PROD) parts.push("Secure");
   res.setHeader("Set-Cookie", parts.join("; "));
 }
 function clearSessionCookie(res) {
-  res.setHeader("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; Path=/; SameSite=None; Max-Age=0${IS_PROD ? "; Secure" : ""}`);
+  res.setHeader("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; Path=/; ${IS_PROD ? "SameSite=None; Secure" : "SameSite=Lax"}; Max-Age=0`);
 }
 function issueBrowserSession(res) {
   const token = randomBytes(32).toString("base64url");
