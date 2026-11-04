@@ -10,6 +10,7 @@ import {
 import { mkdir, readFile, writeFile, rename, chmod } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, "../data"));
@@ -30,6 +31,17 @@ const apiId = Number(process.env.TG_API_ID);
 if (!Number.isInteger(apiId) || apiId <= 0) throw new Error("TG_API_ID must be a positive integer.");
 
 const encryptionKey = Buffer.from(process.env.SESSION_ENCRYPTION_KEY, "hex");
+const r2Names = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"];
+const r2Configured = r2Names.filter((name) => Boolean(process.env[name])).length;
+if (r2Configured !== 0 && r2Configured !== r2Names.length) {
+  throw new Error("Configure all four R2 variables or leave all four empty.");
+}
+const r2 = r2Configured === r2Names.length ? new S3Client({
+  region: "auto",
+  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY }
+}) : null;
+const SESSION_OBJECT_KEY = "telegram-k/private/session.enc";
 const appPassword = Buffer.from(process.env.APP_PASSWORD, "utf8");
 const allowedOrigins = new Set(
   (process.env.FRONTEND_ORIGINS || "http://localhost:5173,http://localhost:8787")
@@ -110,11 +122,40 @@ function decryptSession(payload) {
   return Buffer.concat([decipher.update(Buffer.from(record.data, "base64")), decipher.final()]).toString("utf8");
 }
 async function persistTelegramSession(client) {
+  const encrypted = encryptSession(client.session.save());
+  if (r2) {
+    await r2.send(new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET, Key: SESSION_OBJECT_KEY,
+      Body: encrypted, ContentType: "application/octet-stream"
+    }));
+    return;
+  }
   await mkdir(DATA_DIR, { recursive: true });
   const temp = `${SESSION_FILE}.tmp`;
-  await writeFile(temp, encryptSession(client.session.save()), { mode: 0o600 });
+  await writeFile(temp, encrypted, { mode: 0o600 });
   await chmod(temp, 0o600);
   await rename(temp, SESSION_FILE);
+}
+async function readPersistedSession() {
+  if (r2) {
+    try {
+      const result = await r2.send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET, Key: SESSION_OBJECT_KEY }));
+      return await result.Body.transformToString();
+    } catch (error) {
+      if (error.name === "NoSuchKey" || error.$metadata?.httpStatusCode === 404) return null;
+      throw error;
+    }
+  }
+  try { return await readFile(SESSION_FILE, "utf8"); }
+  catch (error) { if (error.code === "ENOENT") return null; throw error; }
+}
+async function deletePersistedSession() {
+  if (r2) {
+    await r2.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET, Key: SESSION_OBJECT_KEY }));
+    return;
+  }
+  try { await (await import("node:fs/promises")).unlink(SESSION_FILE); }
+  catch (error) { if (error.code !== "ENOENT") throw error; }
 }
 async function createTelegramClient(session = "") {
   const client = new TelegramClient(new StringSession(session), apiId, process.env.TG_API_HASH, {
@@ -127,7 +168,8 @@ async function createTelegramClient(session = "") {
 }
 async function restoreSavedSession() {
   try {
-    const encrypted = await readFile(SESSION_FILE, "utf8");
+    const encrypted = await readPersistedSession();
+    if (!encrypted) return;
     const session = decryptSession(encrypted);
     const client = await createTelegramClient(session);
     if (await client.isUserAuthorized()) {
@@ -302,11 +344,8 @@ app.post("/api/telegram/logout", apiLimiter, requireBrowserSession, async (_req,
     await telegramClient.disconnect().catch(() => {});
     telegramClient = null;
   }
-  try {
-    await (await import("node:fs/promises")).unlink(SESSION_FILE);
-  } catch (error) {
-    if (error.code !== "ENOENT") console.error("Could not remove encrypted session:", error.message);
-  }
+  try { await deletePersistedSession(); }
+  catch (error) { console.error("Could not remove encrypted session:", error.message); }
   dialogsCache.clear();
   res.json({ ok: true });
 });
